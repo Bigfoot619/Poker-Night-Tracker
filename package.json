@@ -1,9 +1,0 @@
-{
-  "name": "poker-night-tracker",
-  "private": true,
-  "type": "module",
-  "workspaces": [
-    "backend",
-    "frontend"
-  ]
-}
