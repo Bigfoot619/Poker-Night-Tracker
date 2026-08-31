@@ -1,15 +1,17 @@
 CREATE TABLE IF NOT EXISTS players (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL UNIQUE,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS games (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   date TEXT NOT NULL,
-  status TEXT NOT NULL CHECK (status IN ('in_progress','finished')) DEFAULT 'in_progress',
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  finished_at TEXT
+  status TEXT NOT NULL CHECK (status IN ('in_progress', 'finished')) DEFAULT 'in_progress',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  finished_at TIMESTAMPTZ,
+  chips_amount INTEGER,
+  cash_amount_cents INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS game_players (
@@ -19,16 +21,17 @@ CREATE TABLE IF NOT EXISTS game_players (
 );
 
 CREATE TABLE IF NOT EXISTS hands (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
   hand_number INTEGER NOT NULL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT,
+  variant TEXT NOT NULL DEFAULT 'Poker',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ,
   UNIQUE (game_id, hand_number)
 );
 
 CREATE TABLE IF NOT EXISTS hand_results (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   hand_id INTEGER NOT NULL REFERENCES hands(id) ON DELETE CASCADE,
   player_id INTEGER NOT NULL REFERENCES players(id),
   amount INTEGER NOT NULL,
@@ -36,6 +39,7 @@ CREATE TABLE IF NOT EXISTS hand_results (
 );
 
 CREATE INDEX IF NOT EXISTS idx_hands_game ON hands(game_id);
+CREATE INDEX IF NOT EXISTS idx_hands_variant ON hands(variant);
 CREATE INDEX IF NOT EXISTS idx_hand_results_hand ON hand_results(hand_id);
 CREATE INDEX IF NOT EXISTS idx_hand_results_player ON hand_results(player_id);
 CREATE INDEX IF NOT EXISTS idx_game_players_player ON game_players(player_id);

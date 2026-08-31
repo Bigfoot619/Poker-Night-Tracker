@@ -21,8 +21,8 @@ function groupHandsByGame(hands) {
   return [...gameMap.values()];
 }
 
-export function computeStatsForPlayer(playerId, variant = 'all') {
-  let hands = statsRepo.getFinishedHandRecordsForPlayer(playerId);
+export async function computeStatsForPlayer(playerId, variant = 'all') {
+  let hands = await statsRepo.getFinishedHandRecordsForPlayer(playerId);
   if (variant !== 'all') {
     hands = hands.filter((h) => h.variant === variant);
   }
@@ -71,17 +71,17 @@ export function computeStatsForPlayer(playerId, variant = 'all') {
   };
 }
 
-export function getPlayerStats(playerId, variant = 'all') {
-  const player = playerRepo.getPlayerById(playerId);
+export async function getPlayerStats(playerId, variant = 'all') {
+  const player = await playerRepo.getPlayerById(playerId);
   if (!player) throw notFound('Player not found.');
-  return { player, stats: computeStatsForPlayer(playerId, variant) };
+  return { player, stats: await computeStatsForPlayer(playerId, variant) };
 }
 
-export function getPlayerVariantBreakdown(playerId) {
-  const player = playerRepo.getPlayerById(playerId);
+export async function getPlayerVariantBreakdown(playerId) {
+  const player = await playerRepo.getPlayerById(playerId);
   if (!player) throw notFound('Player not found.');
 
-  const hands = statsRepo.getFinishedHandRecordsForPlayer(playerId);
+  const hands = await statsRepo.getFinishedHandRecordsForPlayer(playerId);
   const byVariant = new Map();
   for (const h of hands) {
     const entry = byVariant.get(h.variant) ?? { variant: h.variant, handsPlayed: 0, totalProfit: 0 };
@@ -114,17 +114,19 @@ function metricValue(stats, metric) {
   return stats[metric];
 }
 
-export function getLeaderboard(sortBy = 'totalProfit', variant = 'all') {
+export async function getLeaderboard(sortBy = 'totalProfit', variant = 'all') {
   const metric = SORTABLE_METRICS.has(sortBy) ? sortBy : 'totalProfit';
   const normalizedVariant = variant === 'all' || GAME_VARIANTS.includes(variant) ? variant : 'all';
 
-  const playerIds = statsRepo.getAllPlayerIdsWithFinishedGames();
+  const playerIds = await statsRepo.getAllPlayerIdsWithFinishedGames();
 
-  let rows = playerIds.map((id) => {
-    const player = playerRepo.getPlayerById(id);
-    const stats = computeStatsForPlayer(id, normalizedVariant);
-    return { player, stats };
-  });
+  let rows = await Promise.all(
+    playerIds.map(async (id) => {
+      const player = await playerRepo.getPlayerById(id);
+      const stats = await computeStatsForPlayer(id, normalizedVariant);
+      return { player, stats };
+    })
+  );
 
   if (normalizedVariant !== 'all') {
     rows = rows.filter((r) => r.stats.handsPlayed > 0);

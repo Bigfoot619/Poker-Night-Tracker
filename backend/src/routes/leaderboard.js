@@ -5,5 +5,5 @@ import { asyncRoute } from '../middleware/errorHandler.js';
 export const leaderboardRouter = Router();
 
 leaderboardRouter.get('/', asyncRoute(async (req, res) => {
-  res.json(statsService.getLeaderboard(req.query.sortBy, req.query.variant));
+  res.json(await statsService.getLeaderboard(req.query.sortBy, req.query.variant));
 }));

@@ -51,55 +51,55 @@ function assertInProgress(game) {
   return game;
 }
 
-export function saveHand(gameId, results, variant) {
-  const game = assertInProgress(gameRepo.getGameById(gameId));
-  const gamePlayers = gameRepo.getGamePlayers(gameId);
+export async function saveHand(gameId, results, variant) {
+  assertInProgress(await gameRepo.getGameById(gameId));
+  const gamePlayers = await gameRepo.getGamePlayers(gameId);
   validateResults(results, gamePlayers);
   const resolvedVariant = resolveVariant(variant);
 
-  return transaction(() => {
-    const nextNumber = handRepo.getMaxHandNumber(gameId) + 1;
-    const handId = handRepo.insertHand(gameId, nextNumber, resolvedVariant);
+  return transaction(async () => {
+    const nextNumber = (await handRepo.getMaxHandNumber(gameId)) + 1;
+    const handId = await handRepo.insertHand(gameId, nextNumber, resolvedVariant);
     for (const r of results) {
-      handRepo.insertHandResult(handId, r.playerId, r.amount);
+      await handRepo.insertHandResult(handId, r.playerId, r.amount);
     }
     return {
       id: handId,
       handNumber: nextNumber,
       variant: resolvedVariant,
-      results: handRepo.getResultsForHand(handId).map((r) => ({ playerId: r.player_id, amount: r.amount })),
+      results: (await handRepo.getResultsForHand(handId)).map((r) => ({ playerId: r.player_id, amount: r.amount })),
     };
   });
 }
 
-export function undoLastHand(gameId) {
-  const game = assertInProgress(gameRepo.getGameById(gameId));
-  const lastHand = handRepo.getLastHand(gameId);
+export async function undoLastHand(gameId) {
+  assertInProgress(await gameRepo.getGameById(gameId));
+  const lastHand = await handRepo.getLastHand(gameId);
   if (!lastHand) throw notFound('No hands to undo.');
-  handRepo.deleteHand(lastHand.id);
+  await handRepo.deleteHand(lastHand.id);
   return { removedHandNumber: lastHand.hand_number };
 }
 
-export function editHand(handId, results, variant) {
-  const hand = handRepo.getHandById(handId);
+export async function editHand(handId, results, variant) {
+  const hand = await handRepo.getHandById(handId);
   if (!hand) throw notFound('Hand not found.');
-  const game = assertInProgress(gameRepo.getGameById(hand.game_id));
-  const gamePlayers = gameRepo.getGamePlayers(hand.game_id);
+  assertInProgress(await gameRepo.getGameById(hand.game_id));
+  const gamePlayers = await gameRepo.getGamePlayers(hand.game_id);
   validateResults(results, gamePlayers);
   const resolvedVariant = variant === undefined ? hand.variant : resolveVariant(variant);
 
-  return transaction(() => {
-    handRepo.clearHandResults(handId);
+  return transaction(async () => {
+    await handRepo.clearHandResults(handId);
     for (const r of results) {
-      handRepo.insertHandResult(handId, r.playerId, r.amount);
+      await handRepo.insertHandResult(handId, r.playerId, r.amount);
     }
-    handRepo.setHandVariant(handId, resolvedVariant);
-    handRepo.touchHand(handId);
+    await handRepo.setHandVariant(handId, resolvedVariant);
+    await handRepo.touchHand(handId);
     return {
       id: handId,
       handNumber: hand.hand_number,
       variant: resolvedVariant,
-      results: handRepo.getResultsForHand(handId).map((r) => ({ playerId: r.player_id, amount: r.amount })),
+      results: (await handRepo.getResultsForHand(handId)).map((r) => ({ playerId: r.player_id, amount: r.amount })),
     };
   });
 }

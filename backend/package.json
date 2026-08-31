@@ -5,12 +5,13 @@
   "type": "module",
   "main": "src/server.js",
   "scripts": {
-    "dev": "node --watch src/server.js",
+    "dev": "node --env-file=.env --watch src/server.js",
     "start": "node src/server.js",
-    "test": "node --import ./test/preload.js --test test/*.test.js"
+    "test": "node --env-file=.env --import ./test/preload.js --test --test-concurrency=1 test/*.test.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "pg": "^8.13.1"
   }
 }

@@ -4,8 +4,8 @@ import * as playerRepo from '../repositories/playerRepo.js';
 import { transaction } from '../db/index.js';
 import { badRequest, notFound, conflict } from '../errors.js';
 
-function computeTotalsForGame(gameId) {
-  const results = handRepo.getResultsForGame(gameId);
+async function computeTotalsForGame(gameId) {
+  const results = await handRepo.getResultsForGame(gameId);
   const totals = new Map();
   for (const r of results) {
     totals.set(r.player_id, (totals.get(r.player_id) ?? 0) + r.amount);
@@ -13,10 +13,10 @@ function computeTotalsForGame(gameId) {
   return totals;
 }
 
-function toGameSummary(game) {
-  const players = gameRepo.getGamePlayers(game.id);
-  const handCount = handRepo.countHandsForGame(game.id);
-  const totals = computeTotalsForGame(game.id);
+async function toGameSummary(game) {
+  const players = await gameRepo.getGamePlayers(game.id);
+  const handCount = await handRepo.countHandsForGame(game.id);
+  const totals = await computeTotalsForGame(game.id);
   return {
     ...game,
     players,
@@ -25,41 +25,45 @@ function toGameSummary(game) {
   };
 }
 
-export function listGames() {
-  return gameRepo.getAllGames().map(toGameSummary);
+export async function listGames() {
+  const games = await gameRepo.getAllGames();
+  return Promise.all(games.map(toGameSummary));
 }
 
-export function getGame(id) {
-  const game = gameRepo.getGameById(id);
+export async function getGame(id) {
+  const game = await gameRepo.getGameById(id);
   if (!game) throw notFound('Game not found.');
   return toGameSummary(game);
 }
 
-export function getGameWithHands(id) {
-  const summary = getGame(id);
-  const hands = handRepo.getHandsForGame(id).map((h) => ({
-    id: h.id,
-    handNumber: h.hand_number,
-    variant: h.variant,
-    createdAt: h.created_at,
-    updatedAt: h.updated_at,
-    results: handRepo.getResultsForHand(h.id).map((r) => ({ playerId: r.player_id, amount: r.amount })),
-  }));
+export async function getGameWithHands(id) {
+  const summary = await getGame(id);
+  const rawHands = await handRepo.getHandsForGame(id);
+  const hands = await Promise.all(
+    rawHands.map(async (h) => ({
+      id: h.id,
+      handNumber: h.hand_number,
+      variant: h.variant,
+      createdAt: h.created_at,
+      updatedAt: h.updated_at,
+      results: (await handRepo.getResultsForHand(h.id)).map((r) => ({ playerId: r.player_id, amount: r.amount })),
+    }))
+  );
   return { ...summary, hands };
 }
 
-export function getActiveGame() {
-  const game = gameRepo.getActiveGame();
+export async function getActiveGame() {
+  const game = await gameRepo.getActiveGame();
   return game ? toGameSummary(game) : null;
 }
 
-export function createGame(date, playerIds, chipsAmount, cashAmountCents) {
+export async function createGame(date, playerIds, chipsAmount, cashAmountCents) {
   if (!date) throw badRequest('Date is required.');
   if (!Array.isArray(playerIds) || playerIds.length < 2) {
     throw badRequest('At least two players are required to start a game.');
   }
   for (const id of playerIds) {
-    if (!playerRepo.getPlayerById(id)) throw badRequest(`Player ${id} does not exist.`);
+    if (!(await playerRepo.getPlayerById(id))) throw badRequest(`Player ${id} does not exist.`);
   }
   if (!Number.isInteger(chipsAmount) || chipsAmount <= 0) {
     throw badRequest('Chips amount must be a positive whole number.');
@@ -67,14 +71,14 @@ export function createGame(date, playerIds, chipsAmount, cashAmountCents) {
   if (!Number.isInteger(cashAmountCents) || cashAmountCents <= 0) {
     throw badRequest('Cash amount must be a positive number.');
   }
-  if (gameRepo.getActiveGame()) {
+  if (await gameRepo.getActiveGame()) {
     throw conflict('A game is already in progress. Finish it before starting a new one.');
   }
 
-  return transaction(() => {
-    const game = gameRepo.createGame(date, chipsAmount, cashAmountCents);
+  return transaction(async () => {
+    const game = await gameRepo.createGame(date, chipsAmount, cashAmountCents);
     for (const playerId of playerIds) {
-      gameRepo.addGamePlayer(game.id, playerId);
+      await gameRepo.addGamePlayer(game.id, playerId);
     }
     return toGameSummary(game);
   });
@@ -86,10 +90,10 @@ function assertInProgress(game) {
   }
 }
 
-export function endGame(id) {
-  const game = gameRepo.getGameById(id);
+export async function endGame(id) {
+  const game = await gameRepo.getGameById(id);
   if (!game) throw notFound('Game not found.');
   assertInProgress(game);
-  gameRepo.finishGame(id);
+  await gameRepo.finishGame(id);
   return getGame(id);
 }
